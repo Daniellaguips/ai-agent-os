@@ -7,20 +7,20 @@ dead-agent recovery, skill linking, and clean-machine setup.
 If you only read one file as an agent, read `AGENT-CONTRACT.md`. If you are
 evaluating the smallest useful subset, read `MINIMUM-AI-OS.md`.
 
-## Repos
+## Repo
 
 | Repo | Visibility | Role |
 |---|---|---|
-| `github.com/Daniellaguips/ai-os-public` | public | this hub: contract, workflows, standards, coordination, lessons, tools, and portable skills |
-| `github.com/Daniellaguips/agents` | public | optional debug-agent team, surfaced as a local `debug/` symlink by setup |
+| `github.com/Daniellaguips/ai-agent-os` | public | contract, workflows, standards, coordination, lessons, tools, portable skills, and bundled debug agents |
 
-A fresh clone has no committed `debug/` directory and no linked tool skills yet.
-`setup-clone.sh` wires those pieces idempotently.
+A fresh clone has the bundled agents in `agents/`, but no committed `debug/`
+symlink and no linked tool skills yet. `setup-clone.sh` wires those pieces
+idempotently.
 
 ## 1. Clone
 
 ```bash
-git clone https://github.com/Daniellaguips/ai-os-public.git ~/.ai-os
+git clone https://github.com/Daniellaguips/ai-agent-os.git ~/.ai-os
 ```
 
 ## 2. Wire The Clone
@@ -31,12 +31,11 @@ git clone https://github.com/Daniellaguips/ai-os-public.git ~/.ai-os
 
 The setup script:
 
-- clones or reuses the public debug-agent repo at `~/agents`,
-- creates `~/.ai-os/debug -> ~/agents`,
+- creates `~/.ai-os/debug -> ~/.ai-os/agents`,
 - links portable skills into `~/.claude/skills/` and `~/.codex/skills/`,
 - prints the global tool wiring to add manually.
 
-If your debug-agent checkout lives elsewhere:
+If you want to use a different debug-agent checkout:
 
 ```bash
 AI_OS_AGENTS_DIR=/path/to/agents ~/.ai-os/bin/setup-clone.sh
@@ -147,7 +146,7 @@ To run only the smoke directly:
 ```
 
 The smoke creates a temporary `HOME`, clones the hub into `HOME/.ai-os`, runs
-`setup-clone.sh`, verifies debug-agent symlinking, portable skills, optional
+`setup-clone.sh`, verifies bundled debug-agent symlinking, portable skills, optional
 project-pack behavior, and sample repo bootstrap. It does not write to your real
 tool directories.
 
@@ -165,6 +164,7 @@ lessons.md
 bin/
 bootstrap/
 skills/
+agents/
 ```
 
 Customize project-specific release tags, branch naming, deployment markers, issue

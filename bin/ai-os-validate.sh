@@ -253,6 +253,12 @@ check_docs(){
   grep -q 'bin/ai-os-smoke-setup.sh' "$HUB/SETUP.md" \
     && ok "SETUP mentions clean-machine smoke" \
     || fail "SETUP does not mention clean-machine smoke"
+
+  if [ -f "$HUB/agents/.claude/commands/debug.md" ]; then
+    ok "bundled agents debug command exists"
+  else
+    fail "missing bundled agents debug command: agents/.claude/commands/debug.md"
+  fi
 }
 
 check_quick_validate_if_available(){

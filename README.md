@@ -1,19 +1,16 @@
-# AI OS Public Edition
+# AI Agent OS
 
 Portable operating-system rules for AI coding agents working in real repositories.
 The hub gives Claude Code, Codex, Cursor, and similar tools one shared contract,
 one coordination protocol, and executable checks for state, handoff, QA evidence,
-and clean-machine setup.
+clean-machine setup, and a bundled debug-agent team.
 
 This public edition is designed to be shareable. It includes the portable core and
 reusable skills, while excluding local project registries, `.ai/` scratch state,
 author-specific project packs, recovery logs, and product-specific operational
 notes.
 
-**Public repos:**
-
-- Hub: `https://github.com/Daniellaguips/ai-os-public`
-- Debug agents: `https://github.com/Daniellaguips/agents`
+**Public repo:** `https://github.com/Daniellaguips/ai-agent-os`
 
 If you are an AI reading this in a project, start with `AGENT-CONTRACT.md`. It is
 short and binding. If you are installing the system on a new machine, start with
@@ -31,6 +28,8 @@ short and binding. If you are installing the system on a new machine, start with
   non-destructively into `.ai/recovery/`.
 - **Reusable skills:** `skills/<name>/SKILL.md` is the canonical source linked into
   both Claude and Codex.
+- **Bundled debug agents:** `agents/.claude/commands/` contains the debug and
+  report-bugs command team; setup exposes it through a local `debug/` symlink.
 - **Setup validation:** `bin/ai-os-validate.sh --smoke` runs a temp-HOME clean
   machine setup test.
 
@@ -46,14 +45,15 @@ short and binding. If you are installing the system on a new machine, start with
   coding-standards.md    default coding and regression-test standards
   agent-coordination.md  locks, handoff, dirty-state, and recovery protocol
   lessons.md             process-learning index for future agents
+  agents/                bundled debug-agent command team
   skills/                portable skills plus optional project-pack layout
   bin/                   status, validation, setup, QA gate, watchdog tools
   bootstrap/             project onboarding script and `.ai/` templates
 ```
 
-`debug/` is intentionally not committed. `bin/setup-clone.sh` creates it as a
-symlink to the public `agents` repo, so a fresh clone can wire the debug team on
-the adopter's machine without hardcoded local paths.
+`debug/` is intentionally not committed. `bin/setup-clone.sh` creates it as a local
+symlink to the bundled `agents/` directory, so existing hub references can use
+`~/.ai-os/debug` without hardcoded machine paths.
 
 ## Skills
 
@@ -78,6 +78,7 @@ your fork or local clone when a workflow is product-specific.
 From a fresh clone:
 
 ```bash
+git clone https://github.com/Daniellaguips/ai-agent-os.git ~/.ai-os
 ~/.ai-os/bin/setup-clone.sh
 ```
 
@@ -105,7 +106,7 @@ smoke test:
 ```
 
 The smoke test clones the hub into a temporary `HOME`, runs `setup-clone.sh`,
-verifies public debug-agent symlinking, portable skill links, optional project-pack
+verifies bundled debug-agent symlinking, portable skill links, optional project-pack
 behavior, and project bootstrap. It does not write to your real `~/.claude` or
 `~/.codex` directories.
 

@@ -8,7 +8,6 @@ set -euo pipefail
 
 SOURCE_HUB="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 SMOKE_REF="${AI_OS_SMOKE_REF:-HEAD}"
-AGENTS_REMOTE="${AI_OS_SMOKE_AGENTS_REMOTE:-${AI_OS_AGENTS_REMOTE:-https://github.com/Daniellaguips/agents.git}}"
 KEEP="${AI_OS_SMOKE_KEEP:-0}"
 TMP_ROOT=""
 
@@ -18,7 +17,6 @@ usage: ai-os-smoke-setup.sh
 
 Environment:
   AI_OS_SMOKE_REF=<git-ref>              ref to checkout in the temp clone (default HEAD)
-  AI_OS_SMOKE_AGENTS_REMOTE=<url|path>   debug-team repo source (default public agents repo)
   AI_OS_SMOKE_KEEP=1                     keep the temp directory for inspection
 EOF
 }
@@ -97,10 +95,12 @@ else
   ok "fresh clone starts without debug/"
 fi
 
-HOME="$SMOKE_HOME" AI_OS_AGENTS_REMOTE="$AGENTS_REMOTE" "$CLONE/bin/setup-clone.sh"
+assert_dir "$CLONE/agents/.claude/commands"
+assert_file "$CLONE/agents/.claude/commands/debug.md"
 
-assert_dir "$SMOKE_HOME/agents/.git"
-assert_link "$CLONE/debug" "$SMOKE_HOME/agents"
+HOME="$SMOKE_HOME" "$CLONE/bin/setup-clone.sh"
+
+assert_link "$CLONE/debug" "$CLONE/agents"
 
 while IFS= read -r dir; do
   name="$(basename "$dir")"
