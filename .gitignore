@@ -1,0 +1,5 @@
+.watchdog.log
+.watchdog.launchd.log
+debug
+.DS_Store
+**/.DS_Store

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Integration Test Flow"
+  short_description: "Plan and document release test flows"
+  default_prompt: "Use $integration-test-flow to define the integration test flow for this PR."

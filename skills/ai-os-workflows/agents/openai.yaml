@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI OS Workflows"
+  short_description: "Run shared agent release workflows"
+  default_prompt: "Use $ai-os-workflows to run the right shared workflow and improve it if the process exposes a gap."
