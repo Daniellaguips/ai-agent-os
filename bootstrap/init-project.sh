@@ -86,7 +86,12 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
       echo "  updated  .gitignore (added .ai/)"
     fi
   else
-    GIT_DIR="$(git rev-parse --git-dir)"
+    # Use --git-common-dir, NOT --git-dir: git reads info/exclude from the
+    # COMMON dir. In a linked worktree --git-dir is the worktree-private
+    # gitdir (.git/worktrees/<n>/), whose info/exclude git ignores — so
+    # writing there leaves .ai/ unexcluded in every worktree. The common dir
+    # equals --git-dir in a normal repo, so this is correct in both cases.
+    GIT_DIR="$(git rev-parse --git-common-dir)"
     EXCLUDE_FILE="$GIT_DIR/info/exclude"
     mkdir -p "$(dirname "$EXCLUDE_FILE")"
     touch "$EXCLUDE_FILE"

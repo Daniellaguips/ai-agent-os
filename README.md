@@ -24,6 +24,10 @@ short and binding. If you are installing the system on a new machine, start with
   exists before a branch is merged into a release line.
 - **Local coordination:** `.ai/` files give multiple agents shared scratch memory:
   `LOCKS.md`, `HANDOFF.md`, `JOURNAL.md`, and `DIRTY.md`.
+- **Atomic locks:** `bin/ai-os-lock.sh` claims work via `mkdir` (acquire/release/
+  reap), so two agents can't race the same lock; it mirrors to `LOCKS.md`.
+  `bin/ai-os-guard.sh` is a fail-open PreToolUse hook that warns before you edit a
+  file another agent locked.
 - **Dead-agent recovery:** `bin/ai-os-watchdog.sh` captures abandoned local work
   non-destructively into `.ai/recovery/`.
 - **Reusable skills:** `skills/<name>/SKILL.md` is the canonical source linked into
@@ -32,6 +36,9 @@ short and binding. If you are installing the system on a new machine, start with
   report-bugs command team; setup exposes it through a local `debug/` symlink.
 - **Setup validation:** `bin/ai-os-validate.sh --smoke` runs a temp-HOME clean
   machine setup test.
+- **Behavioral self-tests:** `bin/ai-os-selftest.sh` exercises the real decision
+  logic of status / gate-check / prune / lock / guard in throwaway repos; it runs
+  as part of `bin/ai-os-validate.sh`.
 
 ## Layout
 

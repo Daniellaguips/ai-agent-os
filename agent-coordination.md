@@ -46,7 +46,19 @@ Required dispositions for dirty paths:
 
 ## Locks
 
-Before editing shared files, append the narrowest useful lock:
+Prefer the atomic primitive — editing `LOCKS.md` by hand races (two agents both
+read "no lock" and both append, and the whole-file edit is a lost update):
+
+```text
+bin/ai-os-lock.sh acquire <path-or-glob> "why"   # mkdir-atomic; exit 3 if held by a live owner
+bin/ai-os-lock.sh release <path-or-glob>          # on commit or stop
+bin/ai-os-lock.sh list                            # active locks (+ DEAD markers)
+bin/ai-os-lock.sh reap                            # release dead-owner / TTL-expired locks
+```
+
+It serializes the `LOCKS.md` mirror under an index lock and reclaims locks whose
+owner died, so status tooling and humans keep reading `LOCKS.md` as before. As a
+manual fallback, append the narrowest useful lock yourself:
 
 ```text
 - [LOCKED] <path-or-glob> — <agent> — <branch/worktree> — <ISO8601> — <why>

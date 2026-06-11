@@ -172,43 +172,76 @@ LOCK_GLOBS=$(grep -E '^- \[LOCKED\]' .ai/LOCKS.md 2>/dev/null \
   | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' \
   | grep -v '^$' || true)
 
-classify(){ # $1=path -> echoes bucket
+NOW_EPOCH=$(date +%s 2>/dev/null || echo 0)
+# Stale-OWNED policy (L21): a path parked in .ai/DIRTY.md is OWNED, but OWNED is
+# not a permanent parking lot. A park older than this many days is flagged and
+# counts toward "needs attention" (exit 3) so it gets salvaged/shipped/discarded
+# instead of trusted forever. Active LOCKS are never stale. Generous default so
+# normal in-flight parks stay green; override with AI_OS_STALE_OWNED_DAYS.
+STALE_OWNED_DAYS="${AI_OS_STALE_OWNED_DAYS:-14}"
+
+path_locked(){ # $1=path -> 0 if covered by an active LOCKS glob
   local p="$1" g
+  [ -n "$LOCK_GLOBS" ] || return 1
+  while IFS= read -r g; do
+    [ -z "$g" ] && continue
+    [ "$p" = "$g" ] && return 0
+    case "$p" in "$g"/*) return 0;; esac
+    # Wildcard locks only — unquoted paths with () would be case-pattern syntax.
+    if [[ "$g" == *[*?]* ]]; then
+      # shellcheck disable=SC2254
+      case "$p" in $g) return 0;; esac
+    fi
+  done <<< "$LOCK_GLOBS"
+  return 1
+}
+
+classify(){ # $1=path -> echoes bucket
+  local p="$1"
   case "$p" in
     .ai/*) echo scratch; return;;
     *.log|*.tgz|*.tmp|*.png|*.jpg|*.jpeg|*.DS_Store|*screenshot*) echo scratch; return;;
     *.tf-feedback/*|node_modules/*|.cursor/*|.claude/worktrees/*) echo scratch; return;;
     *-local-artifacts/*) echo scratch; return;;
   esac
-  if [ -n "$LOCK_GLOBS" ]; then
-    while IFS= read -r g; do
-      [ -z "$g" ] && continue
-      if [ "$p" = "$g" ]; then echo OWNED; return; fi
-      case "$p" in
-        "$g"/*) echo OWNED; return;;
-      esac
-      # Wildcard locks only — unquoted paths with () would be case-pattern syntax.
-      if [[ "$g" == *[*?]* ]]; then
-        # shellcheck disable=SC2254
-        case "$p" in $g) echo OWNED; return;; esac
-      fi
-    done <<< "$LOCK_GLOBS"
-  fi
+  if path_locked "$p"; then echo OWNED; return; fi
   if [ -f .ai/DIRTY.md ] && grep -qF -- "$p" .ai/DIRTY.md 2>/dev/null; then
-    echo "OWNED"; return
+    echo OWNED; return
   fi
   echo UNKNOWN
+}
+
+epoch_of(){ # $1=YYYY-MM-DD -> epoch seconds (BSD date, then GNU date)
+  date -j -f '%Y-%m-%d' "$1" +%s 2>/dev/null || date -d "$1" +%s 2>/dev/null || echo 0
+}
+dirty_park_age_days(){ # $1=path -> age (days) of the NEWEST .ai/DIRTY.md mention, or empty
+  [ -f .ai/DIRTY.md ] || return 0
+  local ts e
+  ts=$(grep -F -- "$1" .ai/DIRTY.md 2>/dev/null | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}' | sort | tail -1)
+  [ -z "$ts" ] && return 0
+  e=$(epoch_of "$ts"); [ "${e:-0}" -gt 0 ] 2>/dev/null || return 0
+  echo $(( (NOW_EPOCH - e) / 86400 ))
 }
 
 if [ -z "$PORC" ]; then
   echo "  clean — no tracked or untracked changes"
 else
-  UNK=0
+  UNK=0; STALEOWN=0
   while IFS= read -r line; do
     [ -z "$line" ] && continue
     p="${line:3}"; p="${p##* -> }"   # drop status cols + rename "old -> new"
     b=$(classify "$p")
-    printf '  [%-7s] %s\n' "$b" "$p"
+    note=""
+    # L21 teeth: a DIRTY.md-parked OWNED path (NOT one held by an active lock)
+    # that has sat past the window is flagged and gates the exit.
+    if [ "$b" = "OWNED" ] && ! path_locked "$p"; then
+      age=$(dirty_park_age_days "$p")
+      if [ -n "$age" ] && [ "$age" -gt "$STALE_OWNED_DAYS" ] 2>/dev/null; then
+        note="  ⚠ parked ${age}d in .ai/DIRTY.md — resolve per L21 (salvage/ship/lock/discard)"
+        STALEOWN=$((STALEOWN+1))
+      fi
+    fi
+    printf '  [%-7s] %s%s\n' "$b" "$p" "$note"
     [ "$b" = "UNKNOWN" ] && UNK=$((UNK+1))
   done < <(printf '%s\n' "$PORC")
   if [ "$UNK" -gt 0 ]; then
@@ -217,6 +250,14 @@ else
     echo "     ending work (lessons L4): ship via a scoped PR / claim in"
     echo "     .ai/LOCKS.md / record owner+plan in .ai/DIRTY.md / move out of the"
     echo "     repo as local scratch / discard. 'Not mine' is not a disposition."
+    EXIT=3
+  fi
+  if [ "$STALEOWN" -gt 0 ]; then
+    echo
+    echo "  -> $STALEOWN OWNED path(s) parked >${STALE_OWNED_DAYS}d in .ai/DIRTY.md."
+    echo "     OWNED is not a permanent parking lot (lessons L21): salvage to a clean"
+    echo "     branch, ship via a scoped PR, re-lock as active work, or discard."
+    echo "     (Window: AI_OS_STALE_OWNED_DAYS; active LOCKS never go stale.)"
     EXIT=3
   fi
 fi

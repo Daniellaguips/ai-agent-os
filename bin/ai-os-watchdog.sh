@@ -35,7 +35,7 @@ check_repo(){
 
   # Liveness: a live agent leaves recent traces. Skip if any are fresh.
   local newest=0 m
-  for f in "$tpath" .ai/heartbeat.json .ai/HANDOFF.auto.md .ai/JOURNAL.md; do
+  for f in "$tpath" .ai/heartbeat.json .ai/heartbeat.*.json .ai/HANDOFF.auto.md .ai/JOURNAL.md; do
     [ -n "$f" ] && [ -e "$f" ] && { m=$(mtime "$f"); [ "$m" -gt "$newest" ] && newest=$m; }
   done
   if [ "$newest" -gt 0 ] && [ $((NOW - newest)) -lt "$ALIVE_RECENT" ]; then
@@ -49,9 +49,13 @@ check_repo(){
   local nfiles handoff_inflight=0
   nfiles=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
   # positive signal: an agent that handed off mid-task wrote "in progress".
-  # (Protocol says HANDOFF.md is overwritten, not appended, so this is reliable.)
-  if [ -f .ai/HANDOFF.md ] && grep -qiE 'Status:[*: ]*in progress' .ai/HANDOFF.md; then
-    handoff_inflight=1
+  # Only the ACTIVE region counts (after the first '---', before the '<!--'
+  # template-example comment) — same parse as ai-os-status.sh. Grepping the
+  # whole file matched the commented template example and captured recovery on
+  # cleanly-finished repos (observed false positive; selftest covers it).
+  if [ -f .ai/HANDOFF.md ]; then
+    hbody=$(awk 'inb && /<!--/{exit} /^---[[:space:]]*$/{inb=1; next} inb' .ai/HANDOFF.md)
+    printf '%s\n' "$hbody" | grep -qiE 'Status:[*: ]*in progress' && handoff_inflight=1
   fi
   if [ "${nfiles:-0}" -eq 0 ] && [ "$handoff_inflight" -eq 0 ]; then
     return 0   # clean tree, no in-flight handoff -> nothing lost

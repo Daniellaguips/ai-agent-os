@@ -23,7 +23,7 @@
 #   regression:       no | yes — <ticket/source>
 #   regression_test:  n/a | <path[:line] or path::test> — failed pre-fix
 #   debug_pattern:    n/a | <path#Pattern N>
-#   gate_extension:   n/a | same-pr:<path> | linear:<id> regression-watch:extend-gates | not-needed:<why>
+#   gate_extension:   n/a | same-pr:<path> | tracker:<id> regression-watch:extend-gates | not-needed:<why>
 #   decision:         GO | N/A — docs-only | NO-GO
 #   signoff:          qa3-clean | founder-accepted: "<quote>"
 #   rationale:        <required iff decision is N/A — docs-only>
@@ -138,11 +138,23 @@ else
 fi
 
 # ---- QA-1 / QA-2 / QA-3 verdicts, no unresolved blockers ----
+# A bare substring test for "blocker" false-blocks the documented happy-path
+# value ("GO — ... no blockers") — its own schema example (qa-gate.md §OUTPUT)
+# contains the word it rejects. Strip the NEGATED forms (no/zero/without
+# blockers) first, then test the remainder for an unresolved-blocker or NO-GO
+# signal. (selftest: "GO with 'no blockers' phrasing → PASS".)
+has_blocker(){ # $1=verdict value -> 0 if an unresolved blocker/NO-GO remains
+  # Portable left word-boundary: (^|space) captured and re-emitted via \1.
+  # BSD/macOS sed has no \b, so don't use it (it becomes a literal backspace).
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/(^|[[:space:]])(no|zero|without|sans)[[:space:]]+(unresolved[[:space:]]+|remaining[[:space:]]+|open[[:space:]]+)?blockers?/\1/g' \
+    | grep -qE 'blocker|no-go|showstopper'
+}
 for k in qa1 qa2 qa3; do
   v=$(getk "$k")
   if [ -z "$v" ]; then
     fail "$k: missing"
-  elif printf '%s' "$v" | grep -qiE 'blocker|NO-GO'; then
+  elif has_blocker "$v"; then
     fail "$k has unresolved blockers: $v"
   else
     ok "$k: $v"

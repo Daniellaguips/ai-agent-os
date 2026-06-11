@@ -299,6 +299,22 @@ check_git_diff(){
   fi
 }
 
+# Behavioral regression tests for the core coordination scripts (status/gate/
+# prune/lock/guard/heartbeat). Syntax-clean is not behavior-clean; this is what
+# catches a broken OWNED bucket, a false-blocking gate, or a lost-update lock.
+check_selftest(){
+  if [ -x "$HUB/bin/ai-os-selftest.sh" ]; then
+    if "$HUB/bin/ai-os-selftest.sh" >"$TMP_ROOT/selftest.out" 2>&1; then
+      ok "behavioral selftest ($(grep -oE 'pass=[0-9]+' "$TMP_ROOT/selftest.out" | tail -1))"
+    else
+      sed 's/^/      /' "$TMP_ROOT/selftest.out" >&2
+      fail "behavioral selftest"
+    fi
+  else
+    fail "missing bin/ai-os-selftest.sh"
+  fi
+}
+
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ai-os-validate.XXXXXX")"
 
 check_shell_syntax
@@ -308,6 +324,7 @@ check_skill_layout
 check_linker
 check_quick_validate_if_available
 check_git_diff
+check_selftest
 check_docs
 
 if [ "$RUN_SMOKE" -eq 1 ]; then
