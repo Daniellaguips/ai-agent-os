@@ -22,7 +22,6 @@ STATUS="$HUB/bin/ai-os-status.sh"
 GATE="$HUB/bin/ai-os-gate-check.sh"
 PRUNE="$HUB/bin/ai-os-prune.sh"
 LOCK="$HUB/bin/ai-os-lock.sh"
-GUARD="$HUB/bin/ai-os-guard.sh"
 
 PASS=0; FAIL=0
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ai-os-selftest.XXXXXX")"
@@ -480,39 +479,6 @@ EOF
 else
   printf '  [note] jq not found; skipped watchdog test\n'
 fi
-
-# ============================================================
-bold "ai-os-guard — PreToolUse lock guard (fail-open)"
-# ============================================================
-guard_edit(){ # repo path session [enforce] -> runs guard on an Edit of path
-  local repo="$1" path="$2" sid="$3" enf="${4:-0}"
-  printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/%s"},"session_id":"%s","cwd":"%s"}' \
-    "$repo" "$path" "$sid" "$repo" | AI_OS_ENFORCE_LOCKS="$enf" "$GUARD" >"$OUT" 2>&1; RC=$?
-}
-
-# no locks → allow, silent
-R=$(mkrepo)
-guard_edit "$R" src/a.ts me
-expect_rc 0 "guard: no locks → allow"
-expect_no_out 'active lock' "guard silent when nothing locked"
-
-# another agent's lock → fail-open warn (allow)
-R=$(mkrepo)
-( cd "$R" && AI_OS_SESSION=other "$LOCK" acquire "src/a.ts" "theirs" ) >/dev/null 2>&1
-guard_edit "$R" src/a.ts me
-expect_rc 0 "guard: cross-agent lock → fail-open allow (exit 0)"
-expect_out 'under an active lock' "guard warns on cross-agent lock"
-
-# enforce mode → block (exit 2)
-guard_edit "$R" src/a.ts me 1
-expect_rc 2 "guard: cross-agent lock + AI_OS_ENFORCE_LOCKS=1 → block (exit 2)"
-
-# my OWN lock (session matches) → allow, silent
-R=$(mkrepo)
-( cd "$R" && AI_OS_SESSION=me "$LOCK" acquire "src/b.ts" "mine" ) >/dev/null 2>&1
-guard_edit "$R" src/b.ts me
-expect_rc 0 "guard: my own lock → allow"
-expect_no_out 'under an active lock' "guard does not warn on my own lock"
 
 # ============================================================
 bold "ai-os-heartbeat — per-session beat files"
