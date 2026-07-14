@@ -39,6 +39,24 @@ Every finding needs repro or evidence, expected vs actual behavior, affected
 surface, severity, and whether it blocks merge. Verify claims against primary source
 files or command output.
 
+**Then review the other half of the diff.** This stage is addition-biased by default:
+it reads the `+` lines. Typecheck passes when a function is deleted together with its
+only caller; tests pass when nothing ever covered the capability. So ask the two
+questions the rest of the stack never asks:
+
+- **What did this PR create, and what closes its loop?** (caller, gate, consumer,
+  migration, merge — see `coding-standards.md` §The Counterpart Rule)
+- **What did this PR DELETE, and what goes red for it?** Restructure / layout / merge
+  PRs are the top vector for silently dropping a working capability.
+
+```bash
+~/.ai-os/bin/ai-os-counterpart-check.sh --base <diff base>
+```
+
+It reports functions added with no caller, and definitions removed while no test file
+was touched. A finding is a question to answer, not automatically a bug — but
+"nothing calls it" and "nothing went red" are answers that block.
+
 ## QA-2: Product / Intent QA
 
 Check whether the PR delivers the requested intent end to end as the user or admin
@@ -80,6 +98,8 @@ regression:       no | yes — <ticket/source>
 regression_test:  n/a | <path[:line] or path::test> — failed pre-fix
 debug_pattern:    n/a | <path#Pattern N>
 gate_extension:   n/a | same-pr:<path> | tracker:<id> regression-watch:extend-gates | not-needed:<why>
+counterpart:      caller:|gate:|test:|consumer:|client:|migration:|spec:|merge:<path> | none: <why>
+removed:          none | <what> — covered-by:<test path> | <what> — intentional:<why>
 decision:         GO | N/A — docs-only | NO-GO
 signoff:          qa3-clean | human-accepted: "<quote>"
 rationale:        <required iff decision is N/A — docs-only>
@@ -92,6 +112,18 @@ requires:
 - a numbered `debug_pattern:` path,
 - a `gate_extension:` of `same-pr:<path>`, `tracker:<id> regression-watch:extend-gates`,
   or `not-needed:<why>`.
+
+A GO record must also close both halves of the Counterpart Rule (`lessons.md` L1):
+
+- **`counterpart:`** — what closes the loop for what this PR created. At least one
+  `<kind>:<path>` must resolve on disk, so "it has a caller" is proven rather than
+  asserted. If the change genuinely needs no counterpart (a revert, a pure config
+  bump), say so explicitly: `none: <why>`. A bare `none` is rejected — an artifact
+  with no counterpart is inert.
+- **`removed:`** — what this PR deletes. `none`, or the deleted capability plus the
+  thing that goes red for it: `covered-by:<test path>` (must exist) or
+  `intentional:<why>`. This field exists because the gate never used to ask, and a
+  working capability once vanished for two months behind an all-green build.
 
 Run before merge:
 

@@ -21,7 +21,12 @@ short and binding. If you are installing the system on a new machine, start with
 - **One start command:** `bin/ai-os-status.sh` prints repo state, branch drift,
   release tags, active locks, handoff, recovery state, and dirty-path buckets.
 - **Mechanical QA gate:** `bin/ai-os-gate-check.sh` verifies pre-merge QA evidence
-  exists before a branch is merged into a release line.
+  exists before a branch is merged into a release line — including the two
+  Counterpart Rule fields, `counterpart:` and `removed:`.
+- **Counterpart check:** `bin/ai-os-counterpart-check.sh` catches the two failures a
+  normal stack lets through, because every gate in it is *addition-biased*: a
+  function added that nothing calls, and a capability deleted while no test goes red.
+  See `coding-standards.md` §The Counterpart Rule and `lessons.md` L1.
 - **Local coordination:** `.ai/` files give multiple agents shared scratch memory:
   `LOCKS.md`, `HANDOFF.md`, `JOURNAL.md`, and `DIRTY.md`.
 - **Atomic locks:** `bin/ai-os-lock.sh` claims work via `mkdir` (acquire/release/

@@ -65,6 +65,28 @@ Before a spoke PR merges, run the three-stage QA gate:
 Write the gate record and run `~/.ai-os/bin/ai-os-gate-check.sh <branch>` before the
 merge.
 
+Two of the gate record's fields are the whole of rule 6-and-a-half below, made
+mandatory: `counterpart:` (what closes the loop for what you built) and `removed:`
+(what this PR deletes, and what goes red for it).
+
+## 5b. One Rule That Makes the Rest Real
+
+**Nothing ships half a loop.** Creating the artifact is not the task — closing its
+loop is. Function→caller. Rule→the gate that enforces it. Queue→the consumer that
+drains it. Spec→shipped code. Capability→a test that goes red when it is deleted.
+Branch→a merge or an explicit kill.
+
+Before "done": *what calls this? what enforces this? what drains this? what goes red
+if someone deletes this?* **"Nothing" is a bug, not an answer.**
+
+```bash
+~/.ai-os/bin/ai-os-counterpart-check.sh
+```
+
+This one is load-bearing for everything above it: a contract with no gate, a lesson
+nobody reads, and a QA stage nobody runs are all the same failure — an artifact whose
+loop never closed. See `coding-standards.md` §The Counterpart Rule and `lessons.md` L1.
+
 ## 6. One Learning Loop
 
 When a bug or process failure escapes, add the durable rule where future agents read

@@ -24,6 +24,8 @@
 #   regression_test:  n/a | <path[:line] or path::test> — failed pre-fix
 #   debug_pattern:    n/a | <path#Pattern N>
 #   gate_extension:   n/a | same-pr:<path> | tracker:<id> regression-watch:extend-gates | not-needed:<why>
+#   counterpart:      caller:|gate:|test:|consumer:|client:|migration:|spec:|merge:<path> | none: <why>
+#   removed:          none | <what> — covered-by:<test path> | <what> — intentional:<why>
 #   decision:         GO | N/A — docs-only | NO-GO
 #   signoff:          qa3-clean | founder-accepted: "<quote>"
 #   rationale:        <required iff decision is N/A — docs-only>
@@ -221,6 +223,68 @@ case "$(printf '%s' "$REG" | tr '[:upper:]' '[:lower:]')" in
     fail "regression: missing (record no, or yes with regression_test/debug_pattern/gate_extension)" ;;
   *)
     fail "regression value invalid: $REG (use 'no' or 'yes — <ticket/source>')" ;;
+esac
+
+# ---- Counterpart Rule evidence (coding-standards.md §The Counterpart Rule) ----
+# Every gate in a normal stack is ADDITION-BIASED: typecheck passes when you
+# delete a function together with its only caller, tests pass when nothing ever
+# covered the capability, and review reads the `+` lines. So both never-wired
+# code and silently-deleted capability fail OPEN unless the gate explicitly
+# ASKS. These two fields are that question, made mandatory (lessons.md L1).
+#
+#   counterpart: what closes the loop for what this PR created. At least one
+#                <kind>:<path> that RESOLVES ON DISK, or an explicit "none: <why>".
+#   removed:     what this PR deletes. "none", or the thing that goes red for it.
+CP=$(getk counterpart)
+case "$CP" in
+  "")
+    fail "counterpart: missing — what calls / enforces / drains / merges what this PR created? ('nothing' is a bug, not an answer.) Use caller:|gate:|test:|consumer:|client:|migration:|spec:|merge:<path>, or 'none: <why>'" ;;
+  none:*|None:*|NONE:*)
+    WHY=$(trim "${CP#*:}")
+    if [ -n "$WHY" ]; then ok "counterpart: none — $WHY"
+    else fail "counterpart 'none:' requires a reason (why this artifact needs no counterpart)"; fi ;;
+  none|n/a|N/A)
+    fail "counterpart: bare '$CP' — an artifact with no counterpart is inert. State 'none: <why>' explicitly, or name the counterpart." ;;
+  *)
+    CP_OK=0; CP_SEEN=0
+    for tok in $CP; do
+      case "$tok" in
+        caller:*|gate:*|test:*|consumer:*|client:*|migration:*|spec:*)
+          CP_SEEN=1
+          if p=$(first_artifact_path "${tok#*:}") && [ -e "$p" ]; then
+            ok "counterpart: $tok"
+            CP_OK=1
+          else
+            fail "counterpart path not found on disk: $tok"
+          fi ;;
+        merge:*)
+          CP_SEEN=1
+          if [ -n "$(trim "${tok#merge:}")" ]; then ok "counterpart: $tok"; CP_OK=1
+          else fail "counterpart 'merge:' requires a target"; fi ;;
+      esac
+    done
+    if [ "$CP_SEEN" -eq 0 ]; then
+      fail "counterpart: '$CP' names no recognized counterpart. Use caller:|gate:|test:|consumer:|client:|migration:|spec:|merge:<path>, or 'none: <why>'"
+    elif [ "$CP_OK" -eq 0 ]; then
+      fail "counterpart: no named counterpart actually resolves — the loop is not closed"
+    fi ;;
+esac
+
+RM=$(getk removed)
+case "$RM" in
+  "")
+    fail "removed: missing — enumerate what this PR DELETED, not just what it added. Restructure/layout PRs are the top vector for silently dropping a working capability. Use 'none', '<what> — covered-by:<test path>', or '<what> — intentional:<why>'" ;;
+  none|none\ *|None|None\ *|NONE|n/a|"n/a — "*)
+    ok "removed: none" ;;
+  *covered-by:*)
+    CB=$(printf '%s' "$RM" | sed -E 's/.*covered-by:[[:space:]]*//')
+    artifact_exists "removed covered-by" "$CB" ;;
+  *intentional:*)
+    WHY=$(trim "$(printf '%s' "$RM" | sed -E 's/.*intentional:[[:space:]]*//')")
+    if [ -n "$WHY" ]; then ok "removed: intentional — $WHY"
+    else fail "removed 'intentional:' requires a reason"; fi ;;
+  *)
+    fail "removed: '$RM' — a deletion needs the thing that goes RED for it. Use 'covered-by:<test path>' or 'intentional:<why>'" ;;
 esac
 
 echo
