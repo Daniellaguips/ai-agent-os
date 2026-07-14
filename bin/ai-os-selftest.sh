@@ -210,6 +210,8 @@ qa2: GO — clean
 qa3: GO
 integration_flow: n/a — docs-only
 regression: no
+counterpart: none: hub selftest fixture, no product surface
+removed: none
 decision: GO
 signoff: qa3-clean
 EOF
@@ -229,6 +231,8 @@ qa2: GO — reviewed, no blockers
 qa3: GO
 integration_flow: n/a — docs-only
 regression: no
+counterpart: none: hub selftest fixture, no product surface
+removed: none
 decision: GO
 signoff: qa3-clean
 EOF
@@ -245,6 +249,8 @@ qa2: NO-GO — blocker: auth missing on mutating endpoint
 qa3: GO
 integration_flow: n/a — docs-only
 regression: no
+counterpart: none: hub selftest fixture, no product surface
+removed: none
 decision: GO
 signoff: qa3-clean
 EOF
@@ -259,6 +265,8 @@ qa1: GO
 qa2: GO
 qa3: GO
 regression: no
+counterpart: none: hub selftest fixture, no product surface
+removed: none
 decision: NO-GO
 signoff: qa3-clean
 EOF
@@ -291,6 +299,8 @@ qa2: GO
 qa3: GO
 integration_flow: n/a — docs-only
 regression: no
+counterpart: none: hub selftest fixture, no product surface
+removed: none
 decision: GO
 signoff: qa3-clean
 EOF
@@ -313,6 +323,8 @@ regression: yes — PROJ-999 founder-reported
 regression_test: tests/test_regress.py
 debug_pattern: .claude/debug-patterns.md#Pattern 7
 gate_extension: not-needed: additive script, no runtime surface
+counterpart: none: hub selftest fixture, no product surface
+removed: none
 decision: GO
 signoff: qa3-clean
 EOF
@@ -332,10 +344,265 @@ regression: yes — PROJ-1000
 regression_test: n/a
 debug_pattern: n/a
 gate_extension: n/a
+counterpart: none: hub selftest fixture, no product surface
+removed: none
 decision: GO
 signoff: qa3-clean
 EOF
 expect_rc 1 "regression:yes missing evidence → BLOCKED"
+
+# ============================================================
+bold "ai-os-gate-check — Counterpart Rule fields (lessons.md L1)"
+# ============================================================
+# The gate is addition-biased by default: it never asked "what closes the loop
+# for what you built?" or "what did you DELETE?". These assertions are why it
+# now must. Delete the counterpart block in gate-check.sh and these go red.
+
+# counterpart: missing → BLOCKED
+R=$(mkrepo)
+gate "$R" t-cp-missing <<'EOF'
+pr: local-only
+diff_base: none — first build
+baseline: pytest=n/a tsc=n/a
+qa1: GO
+qa2: GO
+qa3: GO
+integration_flow: n/a — docs-only
+regression: no
+removed: none
+decision: GO
+signoff: qa3-clean
+EOF
+expect_rc 1 "counterpart missing → BLOCKED"
+expect_out 'counterpart: missing' "counterpart missing reason printed"
+
+# bare "counterpart: none" → BLOCKED (an artifact with no counterpart is inert)
+R=$(mkrepo)
+gate "$R" t-cp-bare <<'EOF'
+pr: local-only
+diff_base: none — first build
+baseline: pytest=n/a tsc=n/a
+qa1: GO
+qa2: GO
+qa3: GO
+integration_flow: n/a — docs-only
+regression: no
+counterpart: none
+removed: none
+decision: GO
+signoff: qa3-clean
+EOF
+expect_rc 1 "bare 'counterpart: none' → BLOCKED ('nothing' is a bug, not an answer)"
+
+# explicit "none: <why>" → PASS (escape hatch that leaves a trail)
+R=$(mkrepo)
+gate "$R" t-cp-none-why <<'EOF'
+pr: local-only
+diff_base: none — first build
+baseline: pytest=n/a tsc=n/a
+qa1: GO
+qa2: GO
+qa3: GO
+integration_flow: n/a — docs-only
+regression: no
+counterpart: none: revert of an unreleased commit, nothing to wire
+removed: none
+decision: GO
+signoff: qa3-clean
+EOF
+expect_rc 0 "counterpart 'none: <why>' → PASS"
+
+# counterpart naming a path that does not exist → BLOCKED (the loop is not closed)
+R=$(mkrepo)
+gate "$R" t-cp-ghost <<'EOF'
+pr: local-only
+diff_base: none — first build
+baseline: pytest=n/a tsc=n/a
+qa1: GO
+qa2: GO
+qa3: GO
+integration_flow: n/a — docs-only
+regression: no
+counterpart: caller:src/does_not_exist.py
+removed: none
+decision: GO
+signoff: qa3-clean
+EOF
+expect_rc 1 "counterpart path that does not resolve → BLOCKED"
+
+# counterpart naming a REAL path → PASS
+R=$(mkrepo)
+mkdir -p "$R/src"
+printf 'print("caller")\n' > "$R/src/main.py"
+gate "$R" t-cp-real <<'EOF'
+pr: local-only
+diff_base: none — first build
+baseline: pytest=n/a tsc=n/a
+qa1: GO
+qa2: GO
+qa3: GO
+integration_flow: n/a — docs-only
+regression: no
+counterpart: caller:src/main.py
+removed: none
+decision: GO
+signoff: qa3-clean
+EOF
+expect_rc 0 "counterpart naming a real caller → PASS"
+
+# removed: missing → BLOCKED (the addition-bias fix: the gate must ASK)
+R=$(mkrepo)
+gate "$R" t-rm-missing <<'EOF'
+pr: local-only
+diff_base: none — first build
+baseline: pytest=n/a tsc=n/a
+qa1: GO
+qa2: GO
+qa3: GO
+integration_flow: n/a — docs-only
+regression: no
+counterpart: none: docs
+decision: GO
+signoff: qa3-clean
+EOF
+expect_rc 1 "removed: missing → BLOCKED (gate must ask what was deleted)"
+expect_out 'removed: missing' "removed missing reason printed"
+
+# removed with covered-by pointing at nothing → BLOCKED
+R=$(mkrepo)
+gate "$R" t-rm-ghost <<'EOF'
+pr: local-only
+diff_base: none — first build
+baseline: pytest=n/a tsc=n/a
+qa1: GO
+qa2: GO
+qa3: GO
+integration_flow: n/a — docs-only
+regression: no
+counterpart: none: refactor
+removed: photo reorder control — covered-by:tests/test_missing.py
+decision: GO
+signoff: qa3-clean
+EOF
+expect_rc 1 "removed covered-by a nonexistent test → BLOCKED"
+
+# removed with a REAL covering test → PASS (something goes red)
+R=$(mkrepo)
+mkdir -p "$R/tests"
+printf 'def test_reorder(): assert True\n' > "$R/tests/test_reorder.py"
+gate "$R" t-rm-real <<'EOF'
+pr: local-only
+diff_base: none — first build
+baseline: pytest=n/a tsc=n/a
+qa1: GO
+qa2: GO
+qa3: GO
+integration_flow: n/a — docs-only
+regression: no
+counterpart: none: layout rewrite
+removed: old reorder control — covered-by:tests/test_reorder.py
+decision: GO
+signoff: qa3-clean
+EOF
+expect_rc 0 "removed + a real test that goes red → PASS"
+
+# removed, intentional retire with a reason → PASS
+R=$(mkrepo)
+gate "$R" t-rm-intent <<'EOF'
+pr: local-only
+diff_base: none — first build
+baseline: pytest=n/a tsc=n/a
+qa1: GO
+qa2: GO
+qa3: GO
+integration_flow: n/a — docs-only
+regression: no
+counterpart: none: dead feature removal
+removed: legacy export button — intentional:feature retired, tracked in PROJ-12
+decision: GO
+signoff: qa3-clean
+EOF
+expect_rc 0 "removed + intentional:<why> → PASS"
+
+# ============================================================
+bold "ai-os-counterpart-check — orphans and unguarded deletions"
+# ============================================================
+# Two real incident shapes, made mechanical:
+#   (a) a function added that nothing calls  → orphan, no counterpart
+#   (b) a capability deleted by a "layout rewrite" while no test is touched
+#       → nothing went red, so nothing noticed (gone for two months, L1)
+CPC="$HUB/bin/ai-os-counterpart-check.sh"
+
+cprepo(){ # -> path with a seeded app.py + one commit
+  local d="$TMP_ROOT/cp.$RANDOM$RANDOM"
+  mkdir -p "$d"
+  git -C "$d" init -q -b main 2>/dev/null || git -C "$d" init -q
+  printf 'def used():\n    return 1\n\nprint(used())\n' > "$d/app.py"
+  git_q "$d" add -A; git_q "$d" commit -qm seed
+  printf '%s' "$d"
+}
+
+# (a) orphan added → BLOCKED
+R=$(cprepo)
+printf '\ndef orphan_helper():\n    return 2\n' >> "$R/app.py"
+git_q "$R" add -A; git_q "$R" commit -qm "add orphan"
+( cd "$R" && bash "$CPC" --base HEAD~1 ) >"$OUT" 2>&1; RC=$?
+expect_rc 1 "added function with no caller → ORPHAN, blocked"
+expect_out 'ORPHANED' "orphan finding printed"
+
+# added function WITH a caller → PASS
+R=$(cprepo)
+printf '\ndef wired():\n    return 3\n\nprint(wired())\n' >> "$R/app.py"
+git_q "$R" add -A; git_q "$R" commit -qm "add wired"
+( cd "$R" && bash "$CPC" --base HEAD~1 ) >"$OUT" 2>&1; RC=$?
+expect_rc 0 "added function with a caller → PASS"
+
+# explicit "# counterpart:" marker exempts a deliberate public entrypoint
+R=$(cprepo)
+printf '\n# counterpart: public API, called by downstream consumers\ndef public_api():\n    return 9\n' >> "$R/app.py"
+git_q "$R" add -A; git_q "$R" commit -qm "add public api"
+( cd "$R" && bash "$CPC" --base HEAD~1 ) >"$OUT" 2>&1; RC=$?
+expect_rc 0 "explicit 'counterpart:' marker → exempt, PASS"
+
+# (b) capability deleted, NO test touched → BLOCKED
+R=$(cprepo)
+printf 'def capability():\n    return "reorder"\n\ndef used():\n    return 1\n\nprint(used(), capability())\n' > "$R/app.py"
+git_q "$R" add -A; git_q "$R" commit -qm "add capability"
+printf 'def used():\n    return 1\n\nprint(used())\n' > "$R/app.py"
+git_q "$R" add -A; git_q "$R" commit -qm "layout rewrite"
+( cd "$R" && bash "$CPC" --base HEAD~1 ) >"$OUT" 2>&1; RC=$?
+expect_rc 1 "capability deleted with no test touched → BLOCKED (nothing went red)"
+expect_out 'deleted: app.py: capability' "the deleted capability is named"
+
+# same deletion, but --ack-removals → PASS (explicit, leaves a trail)
+( cd "$R" && bash "$CPC" --base HEAD~1 --ack-removals "moved to lib/, covered by existing suite" ) >"$OUT" 2>&1; RC=$?
+expect_rc 0 "deletion + --ack-removals → PASS"
+
+# same deletion, but a test file IS touched → PASS
+R=$(cprepo)
+printf 'def capability():\n    return "reorder"\n\ndef used():\n    return 1\n\nprint(used(), capability())\n' > "$R/app.py"
+git_q "$R" add -A; git_q "$R" commit -qm "add capability"
+mkdir -p "$R/tests"
+printf 'def test_capability(): assert True\n' > "$R/tests/test_cap.py"
+printf 'def used():\n    return 1\n\nprint(used())\n' > "$R/app.py"
+git_q "$R" add -A; git_q "$R" commit -qm "remove capability, update tests"
+( cd "$R" && bash "$CPC" --base HEAD~1 ) >"$OUT" 2>&1; RC=$?
+expect_rc 0 "deletion WITH a test file touched → PASS"
+
+# --warn-only never fails the build
+R=$(cprepo)
+printf '\ndef another_orphan():\n    return 5\n' >> "$R/app.py"
+git_q "$R" add -A; git_q "$R" commit -qm "orphan"
+( cd "$R" && bash "$CPC" --base HEAD~1 --warn-only ) >"$OUT" 2>&1; RC=$?
+expect_rc 0 "--warn-only reports but does not fail"
+
+# test files are exempt from the orphan check (pytest/jest call by discovery)
+R=$(cprepo)
+mkdir -p "$R/tests"
+printf 'def test_never_called_directly():\n    assert True\n' > "$R/tests/test_x.py"
+git_q "$R" add -A; git_q "$R" commit -qm "add test"
+( cd "$R" && bash "$CPC" --base HEAD~1 ) >"$OUT" 2>&1; RC=$?
+expect_rc 0 "test functions are discovered, not called → not orphans"
 
 # ============================================================
 bold "ai-os-prune — stale worktree detection"

@@ -27,6 +27,14 @@ project-specific details; the hub fills in the default workflow and safety rules
 - **No orphaned code.** New functions are wired to callers, new schema ships with a
   migration, new inputs are validated, mutating endpoints get auth/rate limits, and
   every meaningful change gets at least one test.
+- **Nothing ships half a loop (the Counterpart Rule).** Creating the artifact is not
+  the task — closing its loop is. Every artifact ships with its counterpart in the
+  same PR: function→caller, rule→enforcing gate, queue→the consumer that drains it,
+  spec→shipped code, capability→a test that goes red if it is deleted, branch→a merge
+  or an explicit kill. Before "done", answer: *what calls this? what enforces this?
+  what drains this? what goes red if someone deletes this?* **"Nothing" is a bug, not
+  an answer.** On removal, enumerate what you **deleted**, not just what you added.
+  See `coding-standards.md` §The Counterpart Rule and `lessons.md` L1.
 - **Never delete a failing invariant or regression test to go green.** Fix the code,
   or retire the rule deliberately with docs and review context.
 - **Escaped regressions must close the loop.** The fix needs a regression test,
@@ -68,6 +76,7 @@ Tools to run instead of reimplementing:
 
 ```bash
 ~/.ai-os/bin/ai-os-status.sh
+~/.ai-os/bin/ai-os-counterpart-check.sh
 ~/.ai-os/bin/ai-os-gate-check.sh <branch>
 ~/.ai-os/bin/ai-os-prune.sh
 ~/.ai-os/bin/ai-os-validate.sh

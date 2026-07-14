@@ -21,10 +21,67 @@ thing to copy from when bootstrapping a new repo's standards file.
 3. Check the roadmap before proposing architectural change — the work may already be
    a planned phase with a gating reason.
 
+## The Counterpart Rule — nothing ships half a loop
+
+**Creating the artifact is not the task. Closing its loop is the task.** Every
+artifact has a mandatory counterpart; until that counterpart exists the work is
+NOT done, no matter how finished the artifact looks. An artifact with no
+counterpart is inert: it is in the repo and has zero effect on the running
+product.
+
+| You created | Counterpart — same PR | Failure if missing |
+|---|---|---|
+| a function | a caller | orphaned code |
+| an endpoint | client call + auth + rate limit + test | dead API |
+| a DB shape | migration + the code that reads it | stranded schema |
+| **a rule / standard** | **the gate that enforces it** | advisory fiction |
+| **a queue / captured item** | **the consumer that drains it** | write-only queue |
+| **a decision / spec / doc** | shipped code, or an explicit NOT-BUILT marker | doc says done, product says no |
+| **a deferral** | named owner + drain condition + staleness gate | permanent deferral |
+| **a branch / PR** | a merge, or an explicit kill | parked forever |
+| **a user-facing capability** | a test that goes RED if it is deleted | silent regression |
+
+Before calling anything done, answer these. **"Nothing" is not an answer — it is a
+bug:** what calls this? what enforces this? what drains this? what goes red if
+someone deletes this? what merges this?
+
+**When you build the producer, you own the consumer.** A capture script with no
+drain, a standard with no gate, a spec with no code, and a function with no caller
+are the same bug wearing different clothes.
+
+**In reverse, on removal: enumerate what you DELETED, not just what you added.**
+Restructure / layout / merge PRs are the top vector for silently dropping a
+working capability — large `+/-` churn hides the deletion.
+
+**Why this needs a machine and not just good intentions:** every gate in a normal
+stack is **addition-biased**. Typecheck passes when you delete a function together
+with its only caller. Tests pass when nothing ever covered the capability. Review
+reads the `+` lines. Product QA asks "does this deliver the intent?" and never
+"what did we LOSE?". So capability loss and never-wired code fail **OPEN** at every
+layer unless something explicitly looks for them.
+
+Two things in this hub look for them:
+
+```bash
+~/.ai-os/bin/ai-os-counterpart-check.sh     # orphaned additions + unguarded deletions
+~/.ai-os/bin/ai-os-gate-check.sh <branch>   # requires counterpart: and removed: on every GO
+```
+
+The QA gate record therefore carries two mandatory fields — `counterpart:` (what
+closes the loop for what you built) and `removed:` (what this PR deletes, and what
+goes red for it). See `qa-gate.md` §Evidence Record.
+
+**Items reported by a human are not agent-deferrable.** Only the reporter may defer
+their own report. *"Needs `<artifact the agent could produce>`"* — a screenshot, a
+repro, a measurement — is never a valid deferral reason. Go produce it.
+
+See `lessons.md` L1 for the incident class that produced this rule.
+
 ## When creating new functions
 
 - **Wire to a caller in the same commit.** No orphaned code, ever — unreferenced
-  code becomes destructive-by-cleanup later.
+  code becomes destructive-by-cleanup later. This is the first row of the
+  Counterpart Rule above; `ai-os-counterpart-check.sh` enforces it mechanically.
 - Touches the DB → verify the table/column exists first.
 - Needs new DB shape → write the migration in the same PR (see workflows §Database).
 - Accepts user input → validate it (Pydantic `Field()` on the Python side; schema
